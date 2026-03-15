@@ -2,7 +2,7 @@
 
 > Zero-config object pooling for Unity. Drop in, swap calls, done.
 
-**by [youpzdev](https://github.com/youpzz)**
+**by [youpzdev](https://github.com/youpzdev)**
 
 ---
 
