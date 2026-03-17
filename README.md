@@ -35,8 +35,17 @@ No dependencies. No packages. No bullshit.
 ## Usage
 
 ```csharp
-// ── Spawn ──────────────────────────────────────────────────
-GameObject bullet = Pooling.Instantiate(bulletPrefab, spawnPoint.position, spawnPoint.rotation);
+// ── All params ─────────────────────────────────────────────
+Pooling.Instantiate(prefab, position, rotation, parent);
+
+// ── Without rotation ───────────────────────────────────────
+Pooling.Instantiate(prefab, position);
+
+// ── Just prefab ────────────────────────────────────────────
+Pooling.Instantiate(prefab);
+
+// ── With parent ────────────────────────────────────────────
+Pooling.Instantiate(prefab, parent: transform);
 
 // ── Return to pool ─────────────────────────────────────────
 Pooling.Destroy(bullet);
@@ -98,6 +107,17 @@ At extreme counts, `SetActive` overhead dominates — that's Unity, not the pool
 - Objects must be returned via `Pooling.Destroy()` — calling Unity's `Object.Destroy()` directly will leak the instance
 - Pool never shrinks — if you spawn 1000 bullets and never need that many again, they stay in memory
 - `transform.parent` is not reset on reuse — handle that yourself if needed
+
+---
+
+## Changelog
+
+### v1.1.0
+- `Instantiate` now accepts optional `position`, `rotation` and `parent` — all arguments are optional
+- Removed `PooledObject` MonoBehaviour — replaced with `prefabMap` dictionary, no more `AddComponent` overhead
+
+### v1.0.0
+- Initial release
 
 ---
 
