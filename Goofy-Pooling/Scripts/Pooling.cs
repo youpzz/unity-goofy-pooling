@@ -29,6 +29,11 @@ public static class Pooling
 
         return obj;
     }
+
+    public static GameObject Instantiate(GameObject prefab, Transform parent)
+    {
+        return Instantiate(prefab, Vector3.zero, Quaternion.identity, parent);
+    }
     
     public static void Destroy(GameObject obj)
     {
