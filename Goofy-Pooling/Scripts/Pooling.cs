@@ -3,46 +3,98 @@ using UnityEngine;
 
 public static class Pooling
 {
-    private static readonly Dictionary<GameObject, Queue<GameObject>> pools = new();
-    private static readonly Dictionary<GameObject, GameObject> prefabMap = new();
+    // int = instance.GetInstanceID(), GameObject = prefab
+    private static readonly Dictionary<int, GameObject> prefabMap = new(1024);
+    private static readonly Dictionary<GameObject, Stack<GameObject>> pools = new();
+    private static Transform _poolRoot;
 
-    // ====== Methods ====================================================================================
-    public static GameObject Instantiate(GameObject prefab, Vector3 position = default, Quaternion rotation = default, Transform parent = null)
+    private static Transform PoolRoot
     {
-        if (!pools.ContainsKey(prefab)) pools[prefab] = new Queue<GameObject>();
-
-        GameObject obj;
-
-        if (pools[prefab].Count > 0)
+        get
         {
-            obj = pools[prefab].Dequeue();
-            obj.transform.SetPositionAndRotation(position, rotation);
-            obj.SetActive(true);
+            if (_poolRoot != null) return _poolRoot;
+            _poolRoot = new GameObject("[Pool]").transform;
+            Object.DontDestroyOnLoad(_poolRoot.gameObject);
+            return _poolRoot;
+        }
+    }
+
+    private static Stack<GameObject> GetOrCreate(GameObject prefab)
+    {
+        if (!pools.TryGetValue(prefab, out var stack))
+        {
+            stack = new Stack<GameObject>(256);
+            pools[prefab] = stack;
+        }
+        return stack;
+    }
+
+    public static void Prewarm(GameObject prefab, int count)
+    {
+        var stack = GetOrCreate(prefab);
+        for (int i = 0; i < count; i++)
+        {
+            var instance = CreateInstance(prefab, PoolRoot);
+            instance.SetActive(false);
+            stack.Push(instance);
+        }
+    }
+
+    public static GameObject Instantiate(
+        GameObject prefab,
+        Vector3 position = default,
+        Quaternion rotation = default,
+        Transform parent = null)
+    {
+        var stack = GetOrCreate(prefab);
+
+        GameObject instance;
+        if (stack.Count > 0)
+        {
+            instance = stack.Pop();
+            instance.transform.SetPositionAndRotation(position, rotation);
+            if (parent != null) instance.transform.SetParent(parent, true);
         }
         else
         {
-            obj = Object.Instantiate(prefab, position, rotation);
-            prefabMap[obj] = prefab;
+            instance = CreateInstance(prefab, parent);
+            instance.transform.SetPositionAndRotation(position, rotation);
         }
 
-        if (parent != null) obj.transform.SetParent(parent);
-
-        return obj;
+        instance.SetActive(true);
+        return instance;
     }
 
-    public static GameObject Instantiate(GameObject prefab, Transform parent)
+    public static GameObject Instantiate(GameObject prefab, Transform parent) => Instantiate(prefab, Vector3.zero, Quaternion.identity, parent);
+
+    public static void Destroy(GameObject instance)
     {
-        return Instantiate(prefab, Vector3.zero, Quaternion.identity, parent);
+        // int lookup — O(1), никаких компонентов, никакого ref comparison
+        if (!prefabMap.TryGetValue(instance.GetInstanceID(), out var prefab)) return;
+        if (!instance.activeSelf) return;
+
+        instance.SetActive(false);
+        GetOrCreate(prefab).Push(instance);
     }
-    
-    public static void Destroy(GameObject obj)
+
+    public static void Clear(GameObject prefab)
     {
-        if (!prefabMap.TryGetValue(obj, out GameObject prefab)) return;
+        if (!pools.TryGetValue(prefab, out var stack)) return;
+        while (stack.Count > 0)
+        {
+            var instance = stack.Pop();
+            prefabMap.Remove(instance.GetInstanceID());
+            Object.Destroy(instance);
+        }
+        pools.Remove(prefab);
+    }
 
-        obj.SetActive(false);
+    public static void ClearAll() { foreach (var prefab in new List<GameObject>(pools.Keys)) Clear(prefab); }
 
-        if (!pools.ContainsKey(prefab)) pools[prefab] = new Queue<GameObject>();
-
-        pools[prefab].Enqueue(obj);
+    private static GameObject CreateInstance(GameObject prefab, Transform parent)
+    {
+        var instance = Object.Instantiate(prefab, parent);
+        prefabMap[instance.GetInstanceID()] = prefab;
+        return instance;
     }
 }
